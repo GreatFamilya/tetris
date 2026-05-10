@@ -82,6 +82,21 @@
     font-family: inherit;
   }
   #overlay button:hover { background: #c73652; }
+  #lives-display { font-size: 20px; letter-spacing: 3px; color: #e94560; }
+  .heart-empty { color: #444; }
+  @keyframes flash {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  #life-flash {
+    position: absolute;
+    inset: 0;
+    background: #e94560;
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 0;
+  }
+  #board-wrap { position: relative; }
 </style>
 </head>
 <body>
@@ -93,7 +108,10 @@
 </div>
 
 <div id="container">
-  <canvas id="board" width="300" height="600"></canvas>
+  <div id="board-wrap">
+    <canvas id="board" width="300" height="600"></canvas>
+    <div id="life-flash"></div>
+  </div>
   <div id="panel">
     <div class="box">
       <h3>점수</h3>
@@ -106,6 +124,10 @@
     <div class="box">
       <h3>줄 수</h3>
       <div class="value" id="lines">0</div>
+    </div>
+    <div class="box">
+      <h3>생명</h3>
+      <div id="lives-display">♥♥♥</div>
     </div>
     <div class="box">
       <h3>다음</h3>
@@ -150,7 +172,8 @@ const ctx = board.getContext('2d');
 const nextCanvas = document.getElementById('nextCanvas');
 const nctx = nextCanvas.getContext('2d');
 
-let grid, piece, nextPiece, score, level, lines, gameOver, paused, dropInterval, lastTime, animId;
+const MAX_LIVES = 3;
+let grid, piece, nextPiece, score, level, lines, lives, gameOver, paused, dropInterval, lastTime, animId;
 
 function createGrid() {
   return Array.from({length: ROWS}, () => Array(COLS).fill(0));
@@ -228,8 +251,32 @@ function lock() {
   piece = nextPiece;
   nextPiece = randomPiece();
   if (collide(grid, piece)) {
-    endGame();
+    loseLife();
+    return;
   }
+  drawNext();
+}
+
+function loseLife() {
+  lives--;
+  updateLives();
+  if (lives <= 0) {
+    endGame();
+    return;
+  }
+  // 빨간 플래시
+  const flash = document.getElementById('life-flash');
+  flash.style.transition = 'none';
+  flash.style.opacity = '0.5';
+  setTimeout(() => {
+    flash.style.transition = 'opacity 0.8s ease';
+    flash.style.opacity = '0';
+  }, 50);
+
+  // 보드 초기화, 점수/레벨 유지
+  grid = createGrid();
+  piece = randomPiece();
+  nextPiece = randomPiece();
   drawNext();
 }
 
@@ -300,6 +347,13 @@ function updateUI() {
   document.getElementById('score').textContent = score.toLocaleString();
   document.getElementById('level').textContent = level;
   document.getElementById('lines').textContent = lines;
+  updateLives();
+}
+
+function updateLives() {
+  const filled = '♥'.repeat(lives);
+  const empty = '<span class="heart-empty">♥</span>'.repeat(MAX_LIVES - lives);
+  document.getElementById('lives-display').innerHTML = filled + empty;
 }
 
 function loop(timestamp) {
@@ -318,7 +372,7 @@ function loop(timestamp) {
 function startGame() {
   document.getElementById('overlay').style.display = 'none';
   grid = createGrid();
-  score = 0; level = 1; lines = 0;
+  score = 0; level = 1; lines = 0; lives = MAX_LIVES;
   dropInterval = 1000;
   gameOver = false; paused = false; lastTime = 0;
   piece = randomPiece();
@@ -335,7 +389,7 @@ function endGame() {
   ov.innerHTML = `
     <h1>게임 오버</h1>
     <p>최종 점수: <strong style="color:#e94560">${score.toLocaleString()}</strong></p>
-    <p>레벨 ${level} &nbsp;|&nbsp; ${lines}줄 제거</p>
+    <p>레벨 ${level} &nbsp;|&nbsp; ${lines}줄 제거 &nbsp;|&nbsp; 생명 0</p>
     <button onclick="startGame()">다시하기</button>
   `;
   ov.style.display = 'flex';
